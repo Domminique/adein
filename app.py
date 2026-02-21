@@ -4,20 +4,17 @@ import datetime
 import os
 from dotenv import load_dotenv
 
-# This loads variables from a .env file locally, 
-# but on Render, it will use the dashboard variables.
+# Load variables locally or from Render environment
 load_dotenv()
 
 app = Flask(__name__)
 
 # 1. Connect to Elastic Cloud using Environment Variables
-# These must be set in the Render Dashboard under "Environment"
 ELASTIC_CLOUD_ID = os.environ.get("ELASTIC_CLOUD_ID")
 ELASTIC_API_KEY = os.environ.get("ELASTIC_API_KEY")
 
-# Safety check: logs error if variables are missing
 if not ELASTIC_CLOUD_ID or not ELASTIC_API_KEY:
-    print("❌ CRITICAL: Missing Elastic Cloud credentials in Environment Variables!")
+    print("❌ CRITICAL: Missing Elastic Cloud credentials!")
 
 es = Elasticsearch(
     cloud_id=ELASTIC_CLOUD_ID,
@@ -30,7 +27,7 @@ def ussd_callback():
     phone_number = request.values.get("phoneNumber", None)
     text = request.values.get("text", "")
 
-    # 2. Basic USSD Logic (The Menu)
+    # 2. USSD Navigation Logic
     if text == "":
         response = "CON Welcome to Sentinel-Pulse\n"
         response += "1. Report Human Symptoms\n"
@@ -45,7 +42,7 @@ def ussd_callback():
         response += "1. Unusual livestock death\n"
         response += "2. Sudden illness in cattle"
     else:
-        # 3. Data Ingestion to Elasticsearch
+        # 3. Final Input - Send to Elastic Inference Pipeline
         doc = {
             "session_id": session_id,
             "phone": phone_number,
@@ -56,9 +53,14 @@ def ussd_callback():
         }
         
         try:
-            # Note: Ensure "disease-triage-pipeline" is created in Elastic or remove the pipeline param
-            es.index(index="health-reports", document=doc)
-            response = "END Thank you. The AI Agent is analyzing your report. Stay safe."
+            # The 'pipeline' parameter tells Elastic to run our Risk-Triage logic
+            es.index(
+                index="health-reports", 
+                document=doc, 
+                pipeline="disease-triage-pipeline"
+            )
+            # We use a smart response to show the user the AI is working
+            response = "END Thank you. Your report has been received and triaged by our AI Agent."
         except Exception as e:
             print(f"Elastic Error: {e}")
             response = "END System error. We are working on it."
@@ -66,6 +68,6 @@ def ussd_callback():
     return make_response(response, 200, {'Content-Type': 'text/plain'})
 
 if __name__ == '__main__':
-    # IMPORTANT: Render sets the PORT variable. This ensures your app binds correctly.
+    # Bind to Render's dynamic port
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
