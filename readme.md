@@ -36,3 +36,8 @@ PUT _ingest/pipeline/disease-triage-pipeline
   ]
 }
 We leverage Elastic Ingest Pipelines to decouple our application logic from our data enrichment. Our Python script simply sends raw data, and the Elastic 'Brain' calculates the risk level as the data lands, ensuring zero-latency triage.
+
+ELASTIC_API_KEY=WmJrNWdKd0I4eWxCaWM5Y1RKM1o6NG0tZGxKRElIQlR3MlVLY2J6U3RKQQ==
+ELASTIC_ENDPOINT=https://my-elasticsearch-project-af83a4.es.us-central1.gcp.elastic.cloud:44
+ELASTIC_CLOUD_ID=My_Elasticsearch_project:dXMtY2VudHJhbDEuZ2NwLmVsYXN0aWMuY2xvdWQkYWY4M2E0NWQ4MzEzNGE1MjljOGRkM2M2N2JhOTJhNzUuZXMkYWY4M2E0NWQ4MzEzNGE1MjljOGRkM2M2N2JhOTJhNzUua2I=
+
