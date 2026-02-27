@@ -53,7 +53,7 @@ $$I = \frac{\sum (Severity \times Frequency)}{\Delta t}$$
 
 1. **Clone the Repository:**
 ```bash
-git clone https://github.com/your-username/KilimoPulse.git
+git clone https://github.com/domminique/KilimoPulse.git
 cd KilimoPulse
 
 ```
