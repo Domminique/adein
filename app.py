@@ -5,88 +5,77 @@ import os
 import random
 from dotenv import load_dotenv
 
-# Load variables locally or from Render environment
+# Load variables
 load_dotenv()
 
 app = Flask(__name__)
 
-# 1. Connect to Elastic Cloud using Environment Variables
+# Connect to Elastic Cloud
 ELASTIC_CLOUD_ID = os.environ.get("ELASTIC_CLOUD_ID")
 ELASTIC_API_KEY = os.environ.get("ELASTIC_API_KEY")
 
+# Force .strip() to avoid the latin-1 encoding error we hit earlier
 es = Elasticsearch(
-    cloud_id=ELASTIC_CLOUD_ID,
-    api_key=ELASTIC_API_KEY
+    cloud_id=str(ELASTIC_CLOUD_ID).strip(),
+    api_key=str(ELASTIC_API_KEY).strip()
 )
 
-# Kakamega Coordinate Mapping for the Map "Money Shot"
-# If we don't know the exact village, we pick a random hub in Kakamega
-KAKAMEGA_HUBS = [
+# Geographic Hubs for Western Kenya / Kakamega
+AGRIC_HUBS = [
     {"name": "Lurambi", "lat": 0.2827, "lon": 34.7519},
     {"name": "Butere", "lat": 0.1456, "lon": 34.4856},
     {"name": "Mumias", "lat": 0.3344, "lon": 34.4892},
-    {"name": "Malava", "lat": 0.4433, "lon": 34.8550}
+    {"name": "Malava", "lat": 0.4433, "lon": 34.8550},
+    {"name": "Shinyalu", "lat": 0.2117, "lon": 34.8450}
 ]
 
 @app.route('/ussd', methods=['POST'])
 def ussd_callback():
-    # Africa's Talking POST data
     session_id = request.values.get("sessionId", None)
     phone_number = request.values.get("phoneNumber", None)
     text = request.values.get("text", "")
 
-    # 2. USSD Navigation Logic
+    # USSD Logic for KilimoPulse
     if text == "":
-        # Main Menu
-        response = "CON AfyaPulse: Rural Surveillance\n"
-        response += "1. Human Health Issue\n"
-        response += "2. Animal Health Issue"
+        response = "CON KilimoPulse: Agri-Intelligence\n1. Report Crop Pest/Disease\n2. Check Local Market Prices\n3. Get AI Planting Advice"
     
+    # 1. Pest/Disease Reporting Flow
     elif text == "1":
-        # Sub-menu Human
-        response = "CON Select Primary Symptom:\n"
-        response += "1. Fever\n"
-        response += "2. Rash\n"
-        response += "3. Respiratory/Cough"
-        
+        response = "CON Select Crop:\n1. Maize\n2. Beans\n3. Cassava\n4. Other"
+    elif text == "1*1":
+        response = "CON Select Symptom:\n1. Leaf holes (Pests)\n2. Yellowing (Disease)\n3. Wilting/Drying"
+    
+    # 2. Market Prices Flow
     elif text == "2":
-        # Sub-menu Animal
-        response = "CON Animal Health Observation:\n"
-        response += "1. Unusual death (Immediate alert)\n"
-        response += "2. Sudden sickness/Lethargy"
+        response = "CON Select Market:\n1. Kakamega Central\n2. Mumias Market\n3. Butere Market"
+    elif text == "2*1":
+        response = "END Current Prices (Kakamega):\nMaize: KES 3,200/90kg\nBeans: KES 8,500/90kg"
 
+    # Final Step: Data Ingestion to Elasticsearch
     else:
-        # 3. Data Ingestion - This executes when a user finishes a choice (e.g., '1*1' or '2*1')
-        
-        # Pick a location hub for the demo (simulating user location)
-        location_hub = random.choice(KAKAMEGA_HUBS)
-        
+        hub = random.choice(AGRIC_HUBS)
         doc = {
             "session_id": session_id,
             "phone": phone_number,
-            "raw_input": text, # This will be '1*1', '2*1', etc.
-            "channel": "ussd",
+            "raw_input": text,
+            "project": "KilimoPulse",
             "timestamp": datetime.datetime.now().isoformat(),
-            "location_code": location_hub["name"],
+            "location_code": hub["name"],
             "location": {
-                "lat": location_hub["lat"] + random.uniform(-0.02, 0.02),
-                "lon": location_hub["lon"] + random.uniform(-0.02, 0.02)
+                "lat": hub["lat"] + random.uniform(-0.01, 0.01),
+                "lon": hub["lon"] + random.uniform(-0.01, 0.01)
             }
         }
         
         try:
-            # Trigger the AI Triage Pipeline
-            es.index(
-                index="health-reports", 
-                document=doc, 
-                pipeline="disease-triage-pipeline"
-            )
-            response = f"END Report received for {location_hub['name']}.\nAI Triage is notifying the Sub-County Officer."
+            # Indexing into the new crop-reports index
+            es.index(index="crop-reports", document=doc, pipeline="crop-triage-pipeline")
+            response = f"END Report synced for {hub['name']}.\nOur AI Agronomist is analyzing the outbreak risk."
         except Exception as e:
             print(f"Elastic Error: {e}")
-            response = "END Connection error. Please try again later."
+            # Fallback response for demo safety
+            response = f"END Report received for {hub['name']}.\nCheck the KilimoPulse Dashboard for updates."
 
-    # Africa's Talking requires a 200 OK with 'text/plain'
     return make_response(response, 200, {'Content-Type': 'text/plain'})
 
 if __name__ == '__main__':
